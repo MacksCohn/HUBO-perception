@@ -70,15 +70,15 @@ private:
             // bc of these if statements the top left object will be named whatever is nan
             used_names.push_back(replace_closest(_point_names, pt, type));
             data = data.substr(data.find(']')+1);
-            RCLCPP_INFO(get_logger(), "BEFORE_BROADCAST: %f, %f, %f", pt.x, pt.y, pt.z); 
-            geometry_msgs::msg::TransformStamped t;
-            t.header.stamp = this->get_clock()->now();
-            t.header.frame_id = "camera_link";
-            t.child_frame_id = "TEST_OBJECT_HERE";
-            t.transform.translation.x = pt.x;
-            t.transform.translation.y = pt.y;
-            t.transform.translation.z = pt.z;
-            _object_location_broadcaster->sendTransform(t);
+            // RCLCPP_INFO(get_logger(), "BEFORE_BROADCAST: %f, %f, %f", pt.x, pt.y, pt.z); 
+            // geometry_msgs::msg::TransformStamped t;
+            // t.header.stamp = this->get_clock()->now();
+            // t.header.frame_id = "camera_link";
+            // t.child_frame_id = "TEST_OBJECT_HERE";
+            // t.transform.translation.x = pt.x;
+            // t.transform.translation.y = pt.y;
+            // t.transform.translation.z = pt.z;
+            // _object_location_broadcaster->sendTransform(t);
         }
         remove_all_except(_point_names, used_names);
     }
@@ -250,7 +250,7 @@ public:
         declare_parameter<int>("LIFETIME");
         set_parameter(rclcpp::Parameter("MIN_CLUSTER_SIZE", 3));
         set_parameter(rclcpp::Parameter("MAX_CLUSTER_SIZE", 100));
-        set_parameter(rclcpp::Parameter("TABLE_HEIGHT", 2.1));
+        set_parameter(rclcpp::Parameter("TABLE_HEIGHT", -10));
         set_parameter(rclcpp::Parameter("TOLERANCE", 0.018));
         set_parameter(rclcpp::Parameter("REMOVE_FLOOR", true));
         set_parameter(rclcpp::Parameter("LIFETIME", 5 * 1e9));

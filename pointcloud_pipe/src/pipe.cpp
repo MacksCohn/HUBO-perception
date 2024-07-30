@@ -36,7 +36,7 @@ private:
         crop.filter(*cloud_cropped);
         crop.setInputCloud(cloud_cropped);
         crop.setFilterFieldName("z");
-        crop.setFilterLimits(0.0, 3.0);
+        crop.setFilterLimits(0.0, 1.0);
         crop.filter(*cloud_cropped);
         // RCLCPP_INFO(get_logger(), "CROPPED");
         // Do downsampling
@@ -84,7 +84,7 @@ private:
             pcl_conversions::toPCL(_cloud, *cloud);
             pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_conversion(new pcl::PointCloud<pcl::PointXYZ>());
             pcl::fromPCLPointCloud2(*cloud, *cloud_conversion);
-            RCLCPP_INFO(get_logger(), "OBJECT: (%d, %d) - %s", p.first.first, p.first.second, p.second.c_str());
+            // RCLCPP_INFO(get_logger(), "OBJECT: (%d, %d) - %s", p.first.first, p.first.second, p.second.c_str());
             double percent_x = p.first.first / 1024.0; // 544 is height, 1024 is width for multisense
             double percent_y = p.first.second / 544.0; // This is mapping to the combined camera from the left
 
@@ -109,7 +109,7 @@ private:
                     closest_real_point = point;
             }
             pt = closest_real_point;
-            RCLCPP_INFO(get_logger(), "AFTER: %f, %f, %f", pt.x, pt.y, pt.z); 
+            // RCLCPP_INFO(get_logger(), "AFTER: %f, %f, %f", pt.x, pt.y, pt.z); 
             // RCLCPP_INFO(get_logger(), "NO?");
             locations.data += "[" + p.second + ": (" + std::to_string(pt.x) + " " + std::to_string(pt.y)  + " " + std::to_string(pt.z) + ")]\n";
         }

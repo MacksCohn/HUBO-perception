@@ -70,6 +70,15 @@ private:
             // bc of these if statements the top left object will be named whatever is nan
             used_names.push_back(replace_closest(_point_names, pt, type));
             data = data.substr(data.find(']')+1);
+            RCLCPP_INFO(get_logger(), "BEFORE_BROADCAST: %f, %f, %f", pt.x, pt.y, pt.z); 
+            geometry_msgs::msg::TransformStamped t;
+            t.header.stamp = this->get_clock()->now();
+            t.header.frame_id = "camera_link";
+            t.child_frame_id = "TEST_OBJECT_HERE";
+            t.transform.translation.x = pt.x;
+            t.transform.translation.y = pt.y;
+            t.transform.translation.z = pt.z;
+            _object_location_broadcaster->sendTransform(t);
         }
         remove_all_except(_point_names, used_names);
     }
@@ -156,18 +165,6 @@ private:
         _publisher->publish(msg);
         // Broadcast centers as tfs
         name_closest_points(output_centers);
-        // for (size_t point  = 0; point < output_centers->points.size(); point++) {
-        //     geometry_msgs::msg::TransformStamped t;
-        //     t.header.stamp = this->get_clock()->now();
-        //     t.header.frame_id = "camera_link";
-        //     std::string name = get_closest_name(output_centers->points[point], point);
-        //    t.child_frame_id = name;
-        //     t.transform.translation.x = output_centers->points[point].x;
-        //     t.transform.translation.y = output_centers->points[point].y;
-        //     t.transform.translation.z = output_centers->points[point].z;
-        //     // For rotation, some factor of pi/2 - angle helps
-        //     _object_location_broadcaster->sendTransform(t);
-        // }
         // output a cloud of just those centers as well (NOT NECESSARY)
         output_centers->width = output_centers->size();
         output_centers->height = 1;
@@ -251,7 +248,7 @@ public:
         declare_parameter<double>("TOLERANCE");
         declare_parameter<bool>("REMOVE_FLOOR");
         declare_parameter<int>("LIFETIME");
-        set_parameter(rclcpp::Parameter("MIN_CLUSTER_SIZE", 1));
+        set_parameter(rclcpp::Parameter("MIN_CLUSTER_SIZE", 3));
         set_parameter(rclcpp::Parameter("MAX_CLUSTER_SIZE", 100));
         set_parameter(rclcpp::Parameter("TABLE_HEIGHT", 2.1));
         set_parameter(rclcpp::Parameter("TOLERANCE", 0.018));

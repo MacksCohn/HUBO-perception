@@ -20,7 +20,6 @@ private:
     sensor_msgs::msg::PointCloud2 _cloud;
 
     void _on_subscriber(sensor_msgs::msg::PointCloud2::SharedPtr cloud) {
-        _cloud = *cloud;
         // convert to pcl cloud
         pcl::PCLPointCloud2::Ptr cloud_pcl(new pcl::PCLPointCloud2());
         pcl_conversions::toPCL(*cloud, *cloud_pcl);
@@ -43,7 +42,7 @@ private:
         // Do downsampling
         pcl::VoxelGrid<pcl::PointXYZ> downsampling;
         downsampling.setInputCloud(cloud_cropped);
-        downsampling.setLeafSize(0.02, 0.02, 0.02);
+        downsampling.setLeafSize(0.012, 0.012, 0.012);
         downsampling.filter(*cloud_conversion);
         // Publish downsampled cloud to topic
         cloud_conversion->width = cloud_conversion->size();
@@ -54,7 +53,7 @@ private:
         // RCLCPP_INFO(get_logger(), "READY_TO_SEND");
         pcl::toROSMsg(*cloud_conversion, msg);
         _publisher_cloud->publish(msg);
-        // _cloud = msg;
+        _cloud = msg;
     }
 
     std::map<std::pair<int, int>, std::string> parse_info(std_msgs::msg::String msg) {
@@ -85,9 +84,9 @@ private:
             pcl_conversions::toPCL(_cloud, *cloud);
             pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_conversion(new pcl::PointCloud<pcl::PointXYZ>());
             pcl::fromPCLPointCloud2(*cloud, *cloud_conversion);
-            // RCLCPP_INFO(get_logger(), "IS THIS WHERE IT CRASHES (%d, %d) - %s", p.first.first, p.first.second, p.second.c_str());
-            double percent_x = p.first.first / 1024.0; // 544 is width, 1024 is height for multisense
-            double percent_y = 1 - p.first.second / 544.0; // This is mapping to the combined camera from the left
+            RCLCPP_INFO(get_logger(), "OBJECT: (%d, %d) - %s", p.first.first, p.first.second, p.second.c_str());
+            double percent_x = p.first.first / 1024.0; // 544 is height, 1024 is width for multisense
+            double percent_y = p.first.second / 544.0; // This is mapping to the combined camera from the left
 
             double min_x = 1e99;
             double max_x = -1e99;
@@ -102,13 +101,15 @@ private:
             // RCLCPP_INFO(get_logger(), "%lf-%lf, %lf-%lf", min_x, max_x, min_y, max_y);
             pcl::PointXYZ pt;
             pt.x = min_x + (max_x - min_x) * percent_x;
-            pt.y = min_y + (max_y - min_y) * percent_y;
+            pt.y = max_y + (min_y - max_y) * percent_y;
+            // RCLCPP_INFO(get_logger(), "BEFORE: %f, %f, %f", pt.x, pt.y, pt.z); 
             pcl::PointXYZ closest_real_point;
             for (auto point : cloud_conversion->points) {
-                if ((abs(pt.x - point.x) < abs(pt.x - closest_real_point.x)) && (abs(pt.y - point.y) < abs(pt.y - closest_real_point.y)))
+                if ((abs(point.x - pt.x) < abs(closest_real_point.x - pt.x)) && (abs(point.y - pt.y) < abs(closest_real_point.y - pt.y)))
                     closest_real_point = point;
             }
             pt = closest_real_point;
+            RCLCPP_INFO(get_logger(), "AFTER: %f, %f, %f", pt.x, pt.y, pt.z); 
             // RCLCPP_INFO(get_logger(), "NO?");
             locations.data += "[" + p.second + ": (" + std::to_string(pt.x) + " " + std::to_string(pt.y)  + " " + std::to_string(pt.z) + ")]\n";
         }

@@ -2,9 +2,9 @@
 #include "sensor_msgs/msg/point_cloud2.hpp"
 #include "pcl/filters/voxel_grid.h"
 #include "pcl_conversions/pcl_conversions.h"
+#include "pcl/filters/passthrough.h"
 #include "std_msgs/msg/string.hpp"
 #include <map>
-
 class Pipe : public rclcpp::Node {
 private:
     rclcpp::CallbackGroup::SharedPtr _group_cloud;
@@ -19,28 +19,42 @@ private:
     std::map<std::pair<int, int>, std::string> objects_types;
     sensor_msgs::msg::PointCloud2 _cloud;
 
-    void _on_subscriber(sensor_msgs::msg::PointCloud2 cloud) {
-        _cloud = cloud;
-        cloud.header.frame_id = "camera_link";
-        std::vector<sensor_msgs::msg::PointCloud2> clusters;
+    void _on_subscriber(sensor_msgs::msg::PointCloud2::SharedPtr cloud) {
+        _cloud = *cloud;
         // convert to pcl cloud
         pcl::PCLPointCloud2::Ptr cloud_pcl(new pcl::PCLPointCloud2());
-        pcl_conversions::toPCL(cloud, *cloud_pcl);
+        pcl_conversions::toPCL(*cloud, *cloud_pcl);
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_conversion(new pcl::PointCloud<pcl::PointXYZ>());
         pcl::fromPCLPointCloud2(*cloud_pcl, *cloud_conversion);
+        // Box Crop
+        // RCLCPP_INFO(get_logger(), "CONVERTED");
+        pcl::PassThrough<pcl::PointXYZ> crop(true);
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cropped(new pcl::PointCloud<pcl::PointXYZ>());
+        crop.setInputCloud(cloud_conversion);
+        crop.setFilterFieldName("x");
+        crop.setFilterLimits(-5.0,5.0);
+        // RCLCPP_INFO(get_logger(), "ABOUT TO CROP");
+        crop.filter(*cloud_cropped);
+        crop.setInputCloud(cloud_cropped);
+        crop.setFilterFieldName("z");
+        crop.setFilterLimits(0.0, 3.0);
+        crop.filter(*cloud_cropped);
+        // RCLCPP_INFO(get_logger(), "CROPPED");
         // Do downsampling
         pcl::VoxelGrid<pcl::PointXYZ> downsampling;
-        downsampling.setInputCloud(cloud_conversion);
-        downsampling.setLeafSize(0.005, 0.005, 0.005);
+        downsampling.setInputCloud(cloud_cropped);
+        downsampling.setLeafSize(0.02, 0.02, 0.02);
         downsampling.filter(*cloud_conversion);
         // Publish downsampled cloud to topic
         cloud_conversion->width = cloud_conversion->size();
         cloud_conversion->height = 1;
         cloud_conversion->is_dense = true;
-        cloud_conversion->header.frame_id = cloud.header.frame_id;
+        cloud_conversion->header.frame_id = cloud->header.frame_id;
         sensor_msgs::msg::PointCloud2 msg;
-        pcl::toROSMsg(*cloud_conversion, msg);;
+        // RCLCPP_INFO(get_logger(), "READY_TO_SEND");
+        pcl::toROSMsg(*cloud_conversion, msg);
         _publisher_cloud->publish(msg);
+        // _cloud = msg;
     }
 
     std::map<std::pair<int, int>, std::string> parse_info(std_msgs::msg::String msg) {
@@ -59,7 +73,7 @@ private:
             // get ints between parens
             coords.first = std::stoi(object.substr(object.find('(')+1, object.find(',')));
             coords.second = std::stoi(object.substr(object.find(',')+1, object.find(')')));
-            // get string in between '' 
+            // get string in between ''
             object = object.substr(object.find('\'') + 1);
             object = object.substr(0, object.find('\''));
             type_locations[coords] = object;
@@ -71,7 +85,31 @@ private:
             pcl_conversions::toPCL(_cloud, *cloud);
             pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_conversion(new pcl::PointCloud<pcl::PointXYZ>());
             pcl::fromPCLPointCloud2(*cloud, *cloud_conversion);
-            pcl::PointXYZ pt = cloud_conversion->points[p.first.first + p.first.second * cloud_conversion->width];
+            // RCLCPP_INFO(get_logger(), "IS THIS WHERE IT CRASHES (%d, %d) - %s", p.first.first, p.first.second, p.second.c_str());
+            double percent_x = p.first.first / 1024.0; // 544 is width, 1024 is height for multisense
+            double percent_y = 1 - p.first.second / 544.0; // This is mapping to the combined camera from the left
+
+            double min_x = 1e99;
+            double max_x = -1e99;
+            double min_y = 1e99;
+            double max_y = -1e99;
+            for (auto pt : cloud_conversion->points) {
+                min_x = min_x < pt.x ? min_x : pt.x;
+                max_x = max_x > pt.x ? max_x : pt.x;
+                min_y = min_y < pt.y ? min_y : pt.y;
+                max_y = max_y > pt.y ? max_y : pt.y;
+            }
+            // RCLCPP_INFO(get_logger(), "%lf-%lf, %lf-%lf", min_x, max_x, min_y, max_y);
+            pcl::PointXYZ pt;
+            pt.x = min_x + (max_x - min_x) * percent_x;
+            pt.y = min_y + (max_y - min_y) * percent_y;
+            pcl::PointXYZ closest_real_point;
+            for (auto point : cloud_conversion->points) {
+                if ((abs(pt.x - point.x) < abs(pt.x - closest_real_point.x)) && (abs(pt.y - point.y) < abs(pt.y - closest_real_point.y)))
+                    closest_real_point = point;
+            }
+            pt = closest_real_point;
+            // RCLCPP_INFO(get_logger(), "NO?");
             locations.data += "[" + p.second + ": (" + std::to_string(pt.x) + " " + std::to_string(pt.y)  + " " + std::to_string(pt.z) + ")]\n";
         }
         _publisher_info->publish(locations);
@@ -86,13 +124,13 @@ public:
         _group_cloud = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
         rclcpp::SubscriptionOptions options_cloud;
         options_cloud.callback_group = _group_cloud;
-        _subscriber_cloud = create_subscription<sensor_msgs::msg::PointCloud2>("camera/depth/points", rclcpp::SensorDataQoS(), std::bind(&Pipe::_on_subscriber, this, std::placeholders::_1), options_cloud);
+        _subscriber_cloud = create_subscription<sensor_msgs::msg::PointCloud2>("multisense/image_points2", 1, std::bind(&Pipe::_on_subscriber, this, std::placeholders::_1), options_cloud);
         _publisher_cloud = create_publisher<sensor_msgs::msg::PointCloud2>("piped_pointcloud", 10);
-        
+
         _group_info = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
         rclcpp::SubscriptionOptions options_info;
         options_info.callback_group = _group_info;
-        _subscriber_info = create_subscription<std_msgs::msg::String>("detected_locations", 10, std::bind(&Pipe::_on_info, this, std::placeholders::_1), options_info);
+        _subscriber_info = create_subscription<std_msgs::msg::String>("detected_locations", 1, std::bind(&Pipe::_on_info, this, std::placeholders::_1), options_info);
         _publisher_info = create_publisher<std_msgs::msg::String>("space_to_type", 10);
     }
 };

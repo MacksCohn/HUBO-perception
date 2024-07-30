@@ -17,7 +17,7 @@ class ObjectClassifier(Node):
     def __init__(self):
         super().__init__('object_classifier')
         
-        self.subscriber = self.create_subscription(Image, 'camera/rgb/image_raw', self.on_image, 10)
+        self.subscriber = self.create_subscription(Image, 'multisense/left/image_color', self.on_image, 10)
         self.publisher = self.create_publisher(String, 'detected_locations', 10)
         self.timer = self.create_timer(0.2, self.on_timer)
         self.image = None

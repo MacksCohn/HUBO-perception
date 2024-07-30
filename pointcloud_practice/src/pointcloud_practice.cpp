@@ -84,16 +84,8 @@ private:
         // convert from pointcloud2 to pointcloud to then use algorithms on
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_conversion(new pcl::PointCloud<pcl::PointXYZ>());
         pcl::fromPCLPointCloud2(*cloud, *cloud_conversion);
-        // Do some basic distance parsing to cull unhelpful points
-        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_parsed(new pcl::PointCloud<pcl::PointXYZ>());
-        double table_height = get_parameter("TABLE_HEIGHT").as_double();
-        for (auto pt : cloud_conversion->points) {
-            float distance2 = pt.x * pt.x + pt.y * pt.y + pt.z * pt.z;
-            if (pt.z < table_height && distance2 < MAX_DIST2)
-                cloud_parsed->push_back(pt);
-        }
         pcl::PointCloud<pcl::PointXYZ>::Ptr object_cluster_cloud(new pcl::PointCloud<pcl::PointXYZ>());
-        *object_cluster_cloud = *cloud_parsed;
+        *object_cluster_cloud = *cloud_conversion;
         // REMOVE FLOOR
         pcl::SACSegmentation<pcl::PointXYZ> seg;
         pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
@@ -189,7 +181,7 @@ private:
     std::string replace_closest(std::map<std::string, std::pair<pcl::PointXYZ, rclcpp::Time>> &point_map, pcl::PointXYZ pt, std::string type) {
         std::string modified_name;
         // find closest point
-        double TOLERANCE = get_parameter("TOLERANCE").as_double();
+        double TOLERANCE = 0.01;
         double distance2 = static_cast<double>(INT_MAX);
         std::pair<std::string, std::pair<pcl::PointXYZ, rclcpp::Time>> closest_pt;
         size_t type_count = 0;
@@ -247,10 +239,10 @@ public:
         rclcpp::SubscriptionOptions options_parsing;
         options_parsing.callback_group = _group_parsing;
 
-        _subscriber_cloud = create_subscription<sensor_msgs::msg::PointCloud2>(SUB_TOPIC, 10, std::bind(&PointCloudParser::_on_subscriber, this, std::placeholders::_1), options_cloud);
-        _subscriber_parsing = create_subscription<std_msgs::msg::String>("space_to_type", 10, std::bind(&PointCloudParser::_on_info, this, std::placeholders::_1), options_parsing);
+        _subscriber_cloud = create_subscription<sensor_msgs::msg::PointCloud2>(SUB_TOPIC, 1, std::bind(&PointCloudParser::_on_subscriber, this, std::placeholders::_1), options_cloud);
+        _subscriber_parsing = create_subscription<std_msgs::msg::String>("space_to_type", 1, std::bind(&PointCloudParser::_on_info, this, std::placeholders::_1), options_parsing);
 
-        _publisher = create_publisher<sensor_msgs::msg::PointCloud2>("filtered_point_cloud", 10);
+        _publisher = create_publisher<sensor_msgs::msg::PointCloud2>("filtered_point_cloud", 1);
         _object_location_broadcaster = std::make_shared<tf2_ros::TransformBroadcaster>(this);
         _publisher_centers = create_publisher<sensor_msgs::msg::PointCloud2>("filtered_centers", 10);
         declare_parameter<int>("MIN_CLUSTER_SIZE");
@@ -259,10 +251,10 @@ public:
         declare_parameter<double>("TOLERANCE");
         declare_parameter<bool>("REMOVE_FLOOR");
         declare_parameter<int>("LIFETIME");
-        set_parameter(rclcpp::Parameter("MIN_CLUSTER_SIZE", 50));
-        set_parameter(rclcpp::Parameter("MAX_CLUSTER_SIZE", 1000));
+        set_parameter(rclcpp::Parameter("MIN_CLUSTER_SIZE", 1));
+        set_parameter(rclcpp::Parameter("MAX_CLUSTER_SIZE", 100));
         set_parameter(rclcpp::Parameter("TABLE_HEIGHT", 2.1));
-        set_parameter(rclcpp::Parameter("TOLERANCE", 0.01));
+        set_parameter(rclcpp::Parameter("TOLERANCE", 0.018));
         set_parameter(rclcpp::Parameter("REMOVE_FLOOR", true));
         set_parameter(rclcpp::Parameter("LIFETIME", 5 * 1e9));
     }
@@ -332,4 +324,6 @@ int main(int argc, char* argv[]) {
 // KNOWN ISSUES
 /*
 If two objects are close together, objects sort of name incorrectly
+Set up vm with ros melodic
+ubuntu 20.04 vm - docker
 */

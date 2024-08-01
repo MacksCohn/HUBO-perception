@@ -32,9 +32,9 @@ class Vector3 {
 class PointCloudParser : public rclcpp::Node {
 private:
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr _subscriber_cloud;
-    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr _subscriber_parsing;
-
     rclcpp::CallbackGroup::SharedPtr _group_cloud;
+
+    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr _subscriber_parsing;
     rclcpp::CallbackGroup::SharedPtr _group_parsing;
 
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr _publisher;
@@ -58,6 +58,7 @@ private:
             std::string object = data.substr(0, data.find(']'));
             std::string type = object.substr(object.find('[')+1,object.find(':')-2);
             pcl::PointXYZ pt;
+            // Removes if object is recognized out of scope
             object = object.substr(object.find('(')+1);
             if (object.substr(0, object.find(' ')) != "nan")
                 pt.x = std::stof(object.substr(0, object.find(' ')));
@@ -67,18 +68,8 @@ private:
             object = object.substr(object.find(' ')+1);
             if (object.substr(0, object.find(')')) != "nan")
                 pt.z = std::stof(object.substr(0, object.find(')'))); 
-            // bc of these if statements the top left object will be named whatever is nan
             used_names.push_back(replace_closest(_point_names, pt, type));
             data = data.substr(data.find(']')+1);
-            // RCLCPP_INFO(get_logger(), "BEFORE_BROADCAST: %f, %f, %f", pt.x, pt.y, pt.z); 
-            // geometry_msgs::msg::TransformStamped t;
-            // t.header.stamp = this->get_clock()->now();
-            // t.header.frame_id = "camera_link";
-            // t.child_frame_id = "TEST_OBJECT_HERE";
-            // t.transform.translation.x = pt.x;
-            // t.transform.translation.y = pt.y;
-            // t.transform.translation.z = pt.z;
-            // _object_location_broadcaster->sendTransform(t);
         }
         remove_all_except(_point_names, used_names);
     }
@@ -174,7 +165,7 @@ private:
         pcl::toROSMsg(*output_centers, msg_centers);
         _publisher_centers->publish(msg_centers);
     }
-
+    // Replaces the closest already-named tf with the same name
     std::string replace_closest(std::map<std::string, std::pair<pcl::PointXYZ, rclcpp::Time>> &point_map, pcl::PointXYZ pt, std::string type) {
         std::string modified_name;
         // find closest point
@@ -208,7 +199,7 @@ private:
         }
         return modified_name;
     }
-
+    // a^2 + b^2
     double dist2(pcl::PointXYZ a, pcl::PointXYZ b) {
         return pow(b.x - a.x, 2) + pow(b.y - a.y, 2) + pow(b.z - a.z, 2);
     }
@@ -255,30 +246,11 @@ public:
         set_parameter(rclcpp::Parameter("REMOVE_FLOOR", true));
         set_parameter(rclcpp::Parameter("LIFETIME", 2 * 1e9));
     }
-    
-    // Gets the closest stored name for a cluster
-    // Could reverse order so it gets closest object to name rather than closest name to the object
-    std::string get_closest_name(pcl::PointXYZ pt, size_t num) {
-        double distance2 = static_cast<double>(INT_MAX); //
-        double TOLERANCE = get_parameter("TOLERANCE").as_double();
-        std::string closest_name;
-        for (auto pair : _point_names) {
-            double temp2 = dist2(pair.second.first, pt); // pow(pt.x - pair.first.x, 2) + pow(pt.y - pair.first.y, 2) + pow(pt.z-pair.first.z, 2);
-            if (temp2 < distance2) {
-                distance2 = temp2;
-                closest_name = pair.first;
-            }
-        }
-        if (closest_name == "" || distance2 >= TOLERANCE)
-            closest_name = "_" + std::to_string(num);
-        return closest_name;
-    }
-
+    // Names the closest center point to the given names
     void name_closest_points(pcl::PointCloud<pcl::PointXYZ>::Ptr center_points) {
         double TOLERANCE = get_parameter("TOLERANCE").as_double();
         // get closest point to the name
         for (auto pair : _point_names) {
-            // RCLCPP_INFO(get_logger(), "___%s___", pair.first.c_str());
             // find closest point, save point as closest
             double distance2 = static_cast<double>(INT_MAX);
             pcl::PointXYZ closest_point;
@@ -300,7 +272,6 @@ public:
                 t.transform.translation.x = closest_point.x;
                 t.transform.translation.y = closest_point.y;
                 t.transform.translation.z = closest_point.z;
-                // For rotation, some factor of pi/2 - angle helps
                 _object_location_broadcaster->sendTransform(t);
             }
         }
@@ -320,7 +291,7 @@ int main(int argc, char* argv[]) {
 
 // KNOWN ISSUES
 /*
-If two objects are close together, objects sort of name incorrectly
-Set up vm with ros melodic
-ubuntu 20.04 vm - docker
+Working with the multisense, the transform is
+shifted to have a left side bias b/c it can only
+use the left camera
 */

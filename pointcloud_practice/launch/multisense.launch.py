@@ -64,12 +64,12 @@ def generate_launch_description():
             name='pointcloud_practice',
             output='screen',
             parameters=[
-                {'MIN_CLUSTER_SIZE' : 50},
+                {'MIN_CLUSTER_SIZE' : 10},
                 {'MAX_CLUSTER_SIZE' : 500},
                 {'TABLE_HEIGHT' : 10.0},
                 {'TOLERANCE' : 0.01},
                 {'REMOVE_FLOOR' : False},
-                {'LIFETIME' : 5_000_000_000}, # in nano seconds
+                {'LIFETIME' : 2_000_000_000}, # in nano seconds
             ],
         ),
         Node(

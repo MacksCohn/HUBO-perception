@@ -248,19 +248,19 @@ public:
         declare_parameter<double>("TOLERANCE");
         declare_parameter<bool>("REMOVE_FLOOR");
         declare_parameter<int>("LIFETIME");
-        set_parameter(rclcpp::Parameter("MIN_CLUSTER_SIZE", 3));
-        set_parameter(rclcpp::Parameter("MAX_CLUSTER_SIZE", 100));
+        set_parameter(rclcpp::Parameter("MIN_CLUSTER_SIZE", 10));
+        set_parameter(rclcpp::Parameter("MAX_CLUSTER_SIZE", 500));
         set_parameter(rclcpp::Parameter("TABLE_HEIGHT", -10));
-        set_parameter(rclcpp::Parameter("TOLERANCE", 0.018));
+        set_parameter(rclcpp::Parameter("TOLERANCE", 0.01));
         set_parameter(rclcpp::Parameter("REMOVE_FLOOR", true));
-        set_parameter(rclcpp::Parameter("LIFETIME", 5 * 1e9));
+        set_parameter(rclcpp::Parameter("LIFETIME", 2 * 1e9));
     }
     
     // Gets the closest stored name for a cluster
     // Could reverse order so it gets closest object to name rather than closest name to the object
     std::string get_closest_name(pcl::PointXYZ pt, size_t num) {
         double distance2 = static_cast<double>(INT_MAX); //
-        double TOLERANCE = get_parameter("TOLERANCE").as_double();
+        double TOLERANCE = pow(get_parameter("TOLERANCE").as_double(),2);
         std::string closest_name;
         for (auto pair : _point_names) {
             double temp2 = dist2(pair.second.first, pt); // pow(pt.x - pair.first.x, 2) + pow(pt.y - pair.first.y, 2) + pow(pt.z-pair.first.z, 2);

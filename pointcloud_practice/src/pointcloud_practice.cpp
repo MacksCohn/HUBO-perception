@@ -230,7 +230,7 @@ public:
         _subscriber_cloud = create_subscription<sensor_msgs::msg::PointCloud2>(SUB_TOPIC, 1, std::bind(&PointCloudParser::_on_subscriber, this, std::placeholders::_1), options_cloud);
         _subscriber_parsing = create_subscription<std_msgs::msg::String>("space_to_type", 1, std::bind(&PointCloudParser::_on_info, this, std::placeholders::_1), options_parsing);
 
-        _publisher = create_publisher<sensor_msgs::msg::PointCloud2>("filtered_point_cloud", 1);
+        _publisher = create_publisher<sensor_msgs::msg::PointCloud2>("filtered_point_cloud", 10);
         _object_location_broadcaster = std::make_shared<tf2_ros::TransformBroadcaster>(this);
         _publisher_centers = create_publisher<sensor_msgs::msg::PointCloud2>("filtered_centers", 10);
         declare_parameter<int>("MIN_CLUSTER_SIZE");
